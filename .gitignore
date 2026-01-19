@@ -1,0 +1,38 @@
+# ===== OS / System junk =====
+.DS_Store
+Thumbs.db
+NTUSER.DAT*
+desktop.ini
+
+# ===== IDEs & Editors =====
+.vscode/
+.idea/
+*.iml
+.sts4/
+.eclipse/
+.project
+.classpath
+.settings/
+
+# ===== Java / Spring =====
+target/
+*.log
+*.pid
+
+# ===== Node / React =====
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnp/
+
+# ===== Build & Cache =====
+.gradle/
+.m2/
+.cache/
+
+# ===== Secrets & credentials =====
+*.p12
+*.jks
+*.keystore
+.env
+.env.*
