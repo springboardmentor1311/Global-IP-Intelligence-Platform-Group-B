@@ -1,15 +1,20 @@
-import { useState, useEffect, useRef } from "react";
-import { DashboardHeader } from "../components/dashboard/DashboardHeader";
+import { useState, useEffect, useRef, useContext } from "react";
 import { Sidebar } from "../components/dashboard/Sidebar";
+import { AnalystSidebar } from "../components/dashboard/AnalystSidebar";
+import { AnalystLayoutContext } from "../components/dashboard/AnalystLayout";
 import { Camera, Mail, Phone, MapPin, Briefcase, Edit2, Save, X, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { ROLES } from "../routes/routeConfig";
 import authService from "../services/authService";
 import { toast } from "sonner";
 
 export function ProfilePage() {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, getRole } = useAuth();
+  const userRole = getRole()?.toUpperCase();
+  const isAnalyst = userRole === ROLES.ANALYST;
+  const isInAnalystLayout = useContext(AnalystLayoutContext);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const hasLoadedRef = useRef(false);
@@ -190,9 +195,8 @@ export function ProfilePage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100">
-        <DashboardHeader userName="User" />
         <div className="flex">
-          <Sidebar />
+          {!isInAnalystLayout && (isAnalyst ? <AnalystSidebar /> : <Sidebar />)}
           <main className="flex-1 p-8 flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
@@ -206,10 +210,8 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100">
-      <DashboardHeader userName={profileData.username || "User"} />
-      
       <div className="flex">
-        <Sidebar />
+        {!isInAnalystLayout && (isAnalyst ? <AnalystSidebar /> : <Sidebar />)}
         
         {/* Main Content */}
         <main className="flex-1 p-8 overflow-y-auto">
@@ -297,35 +299,6 @@ export function ProfilePage() {
                     <div className="mt-3 px-4 py-2 bg-blue-50 rounded-full border border-blue-200">
                       <span className="text-sm text-blue-700">
                         Member since {profileData.joinDate}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats Card */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-md p-6">
-                  <h3 className="text-xl font-semibold text-blue-900 mb-4">
-                    Activity Stats
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-700">Tracked Patents</span>
-                      <span className="text-2xl font-semibold text-blue-600">
-                        {authUser?.trackedPatents || "0"}
-                      </span>
-                    </div>
-                    <div className="h-px bg-slate-200"></div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-700">Tracked Trademarks</span>
-                      <span className="text-2xl font-semibold text-blue-600">
-                        {authUser?.trackedTrademarks || "0"}
-                      </span>
-                    </div>
-                    <div className="h-px bg-slate-200"></div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-700">Reports Generated</span>
-                      <span className="text-2xl font-semibold text-blue-600">
-                        {authUser?.reportsGenerated || "0"}
                       </span>
                     </div>
                   </div>
