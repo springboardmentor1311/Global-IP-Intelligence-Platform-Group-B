@@ -1,104 +1,243 @@
 import { DashboardHeader } from "../components/dashboard/DashboardHeader";
 import { Sidebar } from "../components/dashboard/Sidebar";
 import { StatCard } from "../components/dashboard/StatCard";
-import { TrendChart } from "../components/dashboard/TrendChart";
-import { GlobalHeatmap } from "../components/dashboard/GlobalHeatmap";
-import { RecentAlerts } from "../components/dashboard/RecentAlerts";
-import { RecommendedAssets } from "../components/dashboard/RecommendedAssets";
-import { FileText, Award, TrendingUp, Bell, Search, Filter, Eye, Plus, X, Shield, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { FileText, Award, Bell, Eye, X, Shield, ArrowRight, Star, Trash2, Calendar } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ROLES } from "../routes/routeConfig";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from "recharts";
-
-interface SearchResult {
-  id: string;
-  title: string;
-  applicant: string;
-  status: "Granted" | "Application" | "Published";
-  filingDate: string;
-  jurisdiction: string;
-}
-
-const mockSearchResults: SearchResult[] = [
-  {
-    id: "US11234567B2",
-    title: "AI-Powered Drug Discovery Platform",
-    applicant: "BioInnovate LLC",
-    status: "Granted",
-    filingDate: "2021-11-20",
-    jurisdiction: "USPTO"
-  },
-  {
-    id: "EP3456789A1",
-    title: "Method for Manufacturing Graphene Supercapacitors",
-    applicant: "NanoMaterials AG",
-    status: "Application",
-    filingDate: "2022-08-01",
-    jurisdiction: "EPO"
-  },
-  {
-    id: "WO2023071234",
-    title: "Quantum-Resistant Cryptography Method",
-    applicant: "Future Tech Inc.",
-    status: "Published",
-    filingDate: "2023-05-15",
-    jurisdiction: "WIPO"
-  }
-];
-
-const legalMilestones = [
-  { label: "Filed", date: "2023-01-15", completed: true },
-  { label: "Published", date: "2023-07-20", completed: true },
-  { label: "Examination", date: "2024-03-10", completed: true },
-  { label: "Grant", date: "2025-01-05", completed: false },
-];
+import { bookmarkAPI, patentDetailAPI, trademarkDetailAPI, BookmarkedPatent, BookmarkedTrademark, dashboardAPI } from "../services/api";
+import { trackingApi } from "../services/trackingAPI";
 
 export function UserDashboard() {
   const navigate = useNavigate();
   const { hasRole } = useAuth();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCountry, setSelectedCountry] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState("");
   const [showAddAssetModal, setShowAddAssetModal] = useState(false);
   const [showSetAlertModal, setShowSetAlertModal] = useState(false);
   const [showViewReportsModal, setShowViewReportsModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [bookmarkedPatents, setBookmarkedPatents] = useState<BookmarkedPatent[]>([]);
+  const [bookmarkedTrademarks, setBookmarkedTrademarks] = useState<BookmarkedTrademark[]>([]);
+  const [loadingBookmarks, setLoadingBookmarks] = useState(true);
+  const [searchCount, setSearchCount] = useState<number>(0);
+  const [loadingSearchCount, setLoadingSearchCount] = useState(true);
+  const [trackedTotal, setTrackedTotal] = useState<number | null>(null);
+  const [loadingTrackedTotal, setLoadingTrackedTotal] = useState<boolean>(true);
+  
+  // Load bookmarked patents and trademarks
+  useEffect(() => {
+    loadBookmarks();
+    loadSearchCount();
+    loadTrackedTotal();
+  }, []);
+  
+  const loadSearchCount = async () => {
+    try {
+      const count = await dashboardAPI.getUserSearchCount();
+      setSearchCount(count);
+    } catch (error) {
+      console.error("Error loading search count:", error);
+    } finally {
+      setLoadingSearchCount(false);
+    }
+  };
+
+  const loadTrackedTotal = async () => {
+    try {
+      const total = await trackingApi.getTotalTrackedPatents();
+      setTrackedTotal(total ?? 0);
+    } catch (error) {
+      console.error("Error loading tracked total:", error);
+      setTrackedTotal(0);
+    } finally {
+      setLoadingTrackedTotal(false);
+    }
+  };
+  
+  const loadBookmarks = async () => {
+    try {
+      const [patents, trademarks] = await Promise.all([
+        bookmarkAPI.getBookmarkedPatents(),
+        bookmarkAPI.getBookmarkedTrademarks()
+      ]);
+      setBookmarkedPatents(patents);
+      setBookmarkedTrademarks(trademarks);
+    } catch (error) {
+      console.error("Error loading bookmarks:", error);
+    } finally {
+      setLoadingBookmarks(false);
+    }
+  };
+
+  const renderBookmarksContent = () => {
+    if (loadingBookmarks) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading bookmarks...</p>
+        </div>
+      );
+    }
+
+    if (bookmarkedPatents.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <Star className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-600 text-lg mb-2">No bookmarked patents yet</p>
+          <p className="text-slate-400">
+            Search for patents and bookmark them to see them here
+          </p>
+        </div>
+      );
+    }
+
+    return renderPatentsList();
+  };
+
+  const getBookmarksContent = () => {
+    if (loadingBookmarks) {
+      return (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading bookmarks...</p>
+        </div>
+      );
+    }
+
+    if (bookmarkedPatents.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <Star className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+          <p className="text-slate-600 text-lg mb-2">No bookmarked patents yet</p>
+          <p className="text-slate-400">
+            Search for patents and bookmark them to see them here
+          </p>
+        </div>
+      );
+    }
+
+    return renderPatentsList();
+  };
+
+  const renderBookmarksSection = () => {
+    return getBookmarksContent();
+  };
+
+  const renderPatentsList = () => {
+    return (
+      <div className="space-y-4">
+        {bookmarkedPatents.map((patent) => (
+          <div
+            key={patent.publicationNumber}
+            className="border border-blue-200 rounded-xl p-4 hover:bg-blue-50 transition-all"
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h4 className="text-lg font-semibold text-blue-900 mb-2">
+                  {patent.publicationNumber}
+                </h4>
+                {patent.title && (
+                  <p className="text-slate-700 mb-3">{patent.title}</p>
+                )}
+                <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                      {patent.jurisdiction}
+                    </span>
+                  </div>
+                  {patent.filingDate && (
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4 text-slate-400" />
+                      <span>Filed: {formatDate(patent.filingDate)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 ml-4">
+                <button
+                  onClick={() => handleViewPatentDetails(patent.publicationNumber)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </button>
+                <button
+                  onClick={() => handleRemoveBookmark(patent.publicationNumber)}
+                  className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-all"
+                  title="Remove bookmark"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+  
+  const handleRemoveBookmark = async (publicationNumber: string) => {
+    try {
+      await patentDetailAPI.unbookmark(publicationNumber);
+      setBookmarkedPatents(bookmarkedPatents.filter(p => p.publicationNumber !== publicationNumber));
+    } catch (error) {
+      console.error("Error removing bookmark:", error);
+      alert("Failed to remove bookmark. Please try again.");
+    }
+  };
+  
+  const handleViewPatentDetails = (publicationNumber: string) => {
+    navigate(`/patents/${publicationNumber}`);
+  };
+  
+  const handleViewTrademarkDetails = (trademarkId: string) => {
+    navigate(`/trademarks/${trademarkId}`);
+  };
+  
+  const handleRemoveTrademarkBookmark = async (trademarkId: string) => {
+    console.log("Attempting to remove bookmark for trademark ID:", trademarkId);
+    
+    if (!trademarkId || trademarkId === 'undefined') {
+      console.error("Invalid trademark ID provided:", trademarkId);
+      alert("Cannot remove bookmark: Invalid trademark ID");
+      return;
+    }
+    
+    try {
+      await trademarkDetailAPI.unbookmark(trademarkId);
+      setBookmarkedTrademarks(bookmarkedTrademarks.filter(t => t.trademarkId !== trademarkId));
+    } catch (error: any) {
+      console.error("Error removing trademark bookmark:", error);
+      
+      // Check for specific backend error messages
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message;
+      
+      if (errorMessage?.includes('EntityManager') || errorMessage?.includes('transaction')) {
+        alert("Backend transaction error. Please contact the administrator to add @Transactional annotation to the unbookmark method.");
+      } else if (error.response?.status === 403) {
+        alert("You don't have permission to remove this bookmark.");
+      } else {
+        alert("Failed to remove bookmark. Please try again.");
+      }
+    }
+  };
+  
+  const formatDate = (date?: string) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return date;
+    }
+  };
   
   // Analytics data
-  const filingsByYearData = [
-    { year: '2020', patents: 245, trademarks: 156 },
-    { year: '2021', patents: 312, trademarks: 198 },
-    { year: '2022', patents: 428, trademarks: 234 },
-    { year: '2023', patents: 587, trademarks: 289 },
-    { year: '2024', patents: 734, trademarks: 342 },
-  ];
-
-  const jurisdictionData = [
-    { name: 'USPTO', value: 456, color: '#3b82f6' },
-    { name: 'EPO', value: 342, color: '#06b6d4' },
-    { name: 'WIPO', value: 289, color: '#8b5cf6' },
-    { name: 'JPO', value: 178, color: '#10b981' },
-    { name: 'Other', value: 145, color: '#f59e0b' },
-  ];
-
-  const statusDistributionData = [
-    { status: 'Granted', count: 856 },
-    { status: 'Pending', count: 423 },
-    { status: 'Rejected', count: 142 },
-    { status: 'Abandoned', count: 89 },
-  ];
-
-  const monthlyTrendData = [
-    { month: 'Jan', filings: 45, grants: 32 },
-    { month: 'Feb', filings: 52, grants: 38 },
-    { month: 'Mar', filings: 67, grants: 45 },
-    { month: 'Apr', filings: 78, grants: 52 },
-    { month: 'May', filings: 89, grants: 61 },
-    { month: 'Jun', filings: 95, grants: 67 },
-  ];
-  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100">
       <DashboardHeader userName="User" />
@@ -115,102 +254,28 @@ export function UserDashboard() {
               <p className="text-slate-600">Overview of your IP intelligence activity</p>
             </div>
 
-            {/* Search + Filters Section */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-blue-200/50 hover:border-blue-300/50 transition-all shadow-xl">
-              <div className="mb-4">
-                <h3 className="text-2xl text-slate-900 mb-1">Quick IP Search</h3>
-                <p className="text-slate-600">Search your tracked patents and trademarks</p>
-              </div>
-              
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by title, applicant, or asset ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-slate-900 placeholder:text-slate-400"
-                  />
-                </div>
-                
-                <div className="flex gap-3">
-                  <select
-                    value={selectedCountry}
-                    onChange={(e) => setSelectedCountry(e.target.value)}
-                    className="px-4 py-3 bg-white border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-slate-900"
-                  >
-                    <option value="">All Countries</option>
-                    <option value="US">United States</option>
-                    <option value="EP">Europe</option>
-                    <option value="CN">China</option>
-                    <option value="JP">Japan</option>
-                  </select>
-                  
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="px-4 py-3 bg-white border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all text-slate-900"
-                  >
-                    <option value="">All Status</option>
-                    <option value="granted">Granted</option>
-                    <option value="application">Application</option>
-                    <option value="published">Published</option>
-                  </select>
-                  
-                  <button className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl flex items-center gap-2 transition-all shadow-lg hover:shadow-xl">
-                    <Search className="w-5 h-5" />
-                    <span>Search</span>
-                  </button>
-                </div>
-              </div>
-              
-              {/* Filter Chips */}
-              <div className="flex flex-wrap gap-2 mt-4">
-                <button className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm transition-all">
-                  <Filter className="w-3 h-3 inline mr-1" />
-                  Technology
-                </button>
-                <button className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm transition-all">
-                  <Filter className="w-3 h-3 inline mr-1" />
-                  Filing Year
-                </button>
-                <button className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm transition-all">
-                  <Filter className="w-3 h-3 inline mr-1" />
-                  Category
-                </button>
-              </div>
-            </div>
-
             {/* Hero Summary Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <StatCard
-                title="Tracked Patents"
-                value="1,284"
+                title="Search Queries"
+                value={loadingSearchCount ? "..." : searchCount.toString()}
                 icon={FileText}
                 gradient="from-blue-500 to-blue-600"
                 delay={0}
               />
               <StatCard
-                title="Tracked Trademarks"
-                value="856"
+                title="Tracked Patents"
+                value={loadingTrackedTotal ? "..." : String(trackedTotal ?? 0)}
                 icon={Award}
                 gradient="from-blue-500 to-blue-600"
                 delay={100}
               />
               <StatCard
-                title="New Filings This Week"
-                value="142"
-                icon={TrendingUp}
-                gradient="from-blue-500 to-blue-600"
-                delay={200}
-              />
-              <StatCard
                 title="Live Alerts"
-                value="23"
+                value="0"
                 icon={Bell}
                 gradient="from-blue-500 to-blue-600"
-                delay={300}
+                delay={200}
               />
             </div>
 
@@ -239,150 +304,244 @@ export function UserDashboard() {
               </div>
             )}
 
-            {/* Search Results Preview */}
+            {/* Bookmarked Patents Section */}
             <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-blue-200/50 hover:border-blue-300/50 transition-all shadow-xl">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-2xl text-slate-900 mb-1">Recent Assets</h3>
-                  <p className="text-slate-600">Your latest tracked IP assets</p>
+                  <h3 className="text-2xl text-slate-900 mb-1 flex items-center gap-2">
+                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                    My Bookmarks
+                  </h3>
+                  <p className="text-slate-600">Patents you've saved for later</p>
                 </div>
-                <button className="px-4 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  View All
-                </button>
               </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-blue-200">
-                      <th className="text-left py-3 px-4 text-slate-700">Asset ID</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Title</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Applicant</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Status</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Filing Date</th>
-                      <th className="text-left py-3 px-4 text-slate-700">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockSearchResults.map((result) => (
-                      <tr
-                        key={result.id}
-                        className="border-b border-blue-100 hover:bg-blue-50/50 transition-all cursor-pointer"
-                      >
-                        <td className="py-3 px-4 text-slate-900">{result.id}</td>
-                        <td className="py-3 px-4 text-slate-900 max-w-xs truncate">{result.title}</td>
-                        <td className="py-3 px-4 text-slate-700">{result.applicant}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-white text-sm inline-block ${
-                              result.status === "Granted"
-                                ? "bg-gradient-to-r from-green-500 to-emerald-500"
-                                : result.status === "Application"
-                                ? "bg-gradient-to-r from-blue-500 to-cyan-500"
-                                : "bg-gradient-to-r from-purple-500 to-indigo-500"
-                            }`}
-                          >
-                            {result.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-700">{result.filingDate}</td>
-                        <td className="py-3 px-4">
-                          <button className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-all">
-                            Track
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
 
-            {/* Legal Status Timeline & Trend Chart Row */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              {/* Legal Status Timeline */}
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-blue-200/50 hover:border-blue-300/50 transition-all shadow-xl">
-                <div className="mb-6">
-                  <h3 className="text-2xl text-slate-900 mb-1">Legal Status Timeline</h3>
-                  <p className="text-slate-600">Track key patent milestones</p>
+              {loadingBookmarks ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Loading bookmarks...</p>
                 </div>
-                
-                <div className="relative">
-                  {/* Timeline */}
-                  <div className="space-y-6">
-                    {legalMilestones.map((milestone, index) => (
-                      <div key={index} className="flex items-center gap-4">
-                        <div className="flex flex-col items-center">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            milestone.completed 
-                              ? "bg-gradient-to-r from-green-500 to-emerald-500" 
-                              : "bg-slate-300"
-                          }`}>
-                            {milestone.completed ? (
-                              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : (
-                              <div className="w-3 h-3 bg-white rounded-full"></div>
+              ) : bookmarkedPatents.length === 0 ? (
+                <div className="text-center py-12">
+                  <Star className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-600 text-lg mb-2">No bookmarked patents yet</p>
+                  <p className="text-slate-400">
+                    Search for patents and bookmark them to see them here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookmarkedPatents.map((patent) => (
+                    <div
+                      key={patent.publicationNumber}
+                      className="border border-blue-200 rounded-xl p-4 hover:bg-blue-50 transition-all"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="text-lg font-semibold text-blue-900 mb-2">
+                            {patent.publicationNumber}
+                          </h4>
+                          {patent.title && (
+                            <p className="text-slate-700 mb-3">{patent.title}</p>
+                          )}
+                          <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                {patent.jurisdiction}
+                              </span>
+                            </div>
+                            {patent.filingDate && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-slate-400" />
+                                <span>Filed: {formatDate(patent.filingDate)}</span>
+                              </div>
                             )}
                           </div>
-                          {index < legalMilestones.length - 1 && (
-                            <div className={`w-0.5 h-8 ${milestone.completed ? "bg-green-500" : "bg-slate-300"}`}></div>
-                          )}
                         </div>
-                        
-                        <div className="flex-1">
-                          <div className="text-slate-900">{milestone.label}</div>
-                          <div className="text-sm text-slate-500">{milestone.date}</div>
+
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleViewPatentDetails(patent.publicationNumber)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleRemoveBookmark(patent.publicationNumber)}
+                            className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-all"
+                            title="Remove bookmark"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-
-              {/* Quick Actions Card */}
-              <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-blue-200/50 hover:border-blue-300/50 transition-all shadow-xl">
-                <div className="mb-6">
-                  <h3 className="text-2xl text-slate-900 mb-1">Quick Actions</h3>
-                  <p className="text-slate-600">Frequently used tools and features</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <button className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl flex flex-col items-center gap-2 group" onClick={() => setShowAddAssetModal(true)}>
-                    <Plus className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    <span className="text-sm">Add Asset</span>
-                  </button>
-                  
-                  <button className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl flex flex-col items-center gap-2 group" onClick={() => setShowSetAlertModal(true)}>
-                    <Bell className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    <span className="text-sm">Set Alert</span>
-                  </button>
-                  
-                  <button className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl flex flex-col items-center gap-2 group" onClick={() => setShowViewReportsModal(true)}>
-                    <FileText className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    <span className="text-sm">View Reports</span>
-                  </button>
-                  
-                  <button className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl transition-all shadow-lg hover:shadow-xl flex flex-col items-center gap-2 group" onClick={() => setShowAnalyticsModal(true)}>
-                    <TrendingUp className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                    <span className="text-sm">Analytics</span>
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Trend Graph */}
-            <TrendChart />
+            {/* Bookmarked Patents Section */}
+            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-blue-200/50 hover:border-blue-300/50 transition-all shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl text-slate-900 mb-1 flex items-center gap-2">
+                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                    My Bookmarks
+                  </h3>
+                  <p className="text-slate-600">Patents you've saved for later</p>
+                </div>
+              </div>
 
-            {/* Global Heatmap */}
-            <GlobalHeatmap />
+              {loadingBookmarks ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Loading bookmarks...</p>
+                </div>
+              ) : bookmarkedPatents.length === 0 ? (
+                <div className="text-center py-12">
+                  <Star className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-600 text-lg mb-2">No bookmarked patents yet</p>
+                  <p className="text-slate-400">
+                    Search for patents and bookmark them to see them here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookmarkedPatents.map((patent) => (
+                    <div
+                      key={patent.publicationNumber}
+                      className="border border-blue-200 rounded-xl p-4 hover:bg-blue-50 transition-all"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="text-lg font-semibold text-blue-900 mb-2">
+                            {patent.publicationNumber}
+                          </h4>
+                          {patent.title && (
+                            <p className="text-slate-700 mb-3">{patent.title}</p>
+                          )}
+                          <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                {patent.jurisdiction}
+                              </span>
+                            </div>
+                            {patent.filingDate && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-slate-400" />
+                                <span>Filed: {formatDate(patent.filingDate)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-            {/* Bottom Section */}
-            <div className="grid lg:grid-cols-2 gap-6">
-              <RecentAlerts />
-              <RecommendedAssets />
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleViewPatentDetails(patent.publicationNumber)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleRemoveBookmark(patent.publicationNumber)}
+                            className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-all"
+                            title="Remove bookmark"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bookmarked Trademarks Section */}
+            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-blue-200/50 hover:border-blue-300/50 transition-all shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl text-slate-900 mb-1 flex items-center gap-2">
+                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                    Bookmarked Trademarks
+                  </h3>
+                  <p className="text-slate-600">Trademarks you've saved for later</p>
+                </div>
+              </div>
+
+              {loadingBookmarks ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-slate-600">Loading bookmarks...</p>
+                </div>
+              ) : bookmarkedTrademarks.length === 0 ? (
+                <div className="text-center py-12">
+                  <Star className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-600 text-lg mb-2">No bookmarked trademarks yet</p>
+                  <p className="text-slate-400">
+                    Search for trademarks and bookmark them to see them here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookmarkedTrademarks.map((trademark) => (
+                    <div
+                      key={trademark.trademarkId}
+                      className="border border-blue-200 rounded-xl p-4 hover:bg-blue-50 transition-all"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="text-lg font-semibold text-blue-900 mb-2">
+                            {trademark.markName || trademark.trademarkId}
+                          </h4>
+                          <div className="flex flex-wrap gap-4 text-sm text-slate-600">
+                            {trademark.jurisdiction && (
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                  {trademark.jurisdiction}
+                                </span>
+                              </div>
+                            )}
+                            {trademark.statusCode && (
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                  {trademark.statusCode}
+                                </span>
+                              </div>
+                            )}
+                            {trademark.filingDate && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4 text-slate-400" />
+                                <span>Filed: {formatDate(trademark.filingDate)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleViewTrademarkDetails(trademark.trademarkId)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center gap-2 shadow-md hover:shadow-lg"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleRemoveTrademarkBookmark(trademark.trademarkId)}
+                            className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition-all"
+                            title="Remove bookmark"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </main>

@@ -16,7 +16,8 @@ export interface RegisterData {
 }
 
 export interface AuthResponse {
-  token: string;
+  token?: string;
+  passwordChangeRequired?: boolean;
   user?: any;
 }
 
@@ -40,14 +41,24 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
       const response = await api.post('/auth/login', credentials);
-      const token = response.data.token || response.data;
+      const data = response.data;
       
-      // Store token in localStorage
+      // Check if password change is required
+      if (data.passwordChangeRequired === true) {
+        // DO NOT store token when password change is required
+        return {
+          passwordChangeRequired: true,
+          token: undefined
+        };
+      }
+      
+      // Normal login - store token
+      const token = data.token || data;
       if (token) {
         this.setToken(token);
       }
       
-      return response.data;
+      return data;
     } catch (error: any) {
       throw new Error(
         error.response?.data?.message || 
@@ -131,10 +142,33 @@ class AuthService {
     return !!token;
   }
 
-  // Logout user
-  logout(): void {
-    localStorage.removeItem('jwt_token');
-    localStorage.removeItem('user');
+  // Logout user - calls backend to blacklist token
+  async logout(): Promise<void> {
+    try {
+      const token = this.getToken();
+      
+      // Call backend logout endpoint if token exists
+      if (token) {
+        try {
+          await api.post('/auth/logout', {}, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          console.log('✅ Backend logout successful - token blacklisted');
+        } catch (error: any) {
+          // Even if backend logout fails, still clear frontend
+          console.warn('⚠️ Backend logout failed, clearing frontend state:', error.message);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+    } finally {
+      // Always clear localStorage and state regardless of backend response
+      localStorage.removeItem('jwt_token');
+      localStorage.removeItem('user');
+      console.log('🔐 Local auth data cleared');
+    }
   }
 
   // Get stored user data
@@ -214,6 +248,25 @@ class AuthService {
         error.response?.data?.message || 
         error.response?.data?.error || 
         'Failed to update profile.'
+      );
+    }
+  }
+
+  // Change password (for first-login users)
+  async changePassword(email: string, oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    try {
+      const response = await api.post('/auth/change-password', {
+        email,
+        oldPassword,
+        newPassword
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('authService: changePassword error:', error);
+      throw new Error(
+        error.response?.data?.message ??
+        error.response?.data?.error ??
+        'Failed to change password.'
       );
     }
   }
